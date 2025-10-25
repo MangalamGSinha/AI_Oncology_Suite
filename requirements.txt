@@ -1,0 +1,27 @@
+# Core Framework
+streamlit==1.39.0
+
+# Data Science Stack
+pandas>=2.2.2
+numpy>=1.26.4
+matplotlib>=3.9.2
+seaborn>=0.13.2
+lifelines>=0.28.0
+scikit-learn>=1.5.2
+
+# PDF and File Handling
+pdfplumber>=0.11.0
+PyPDF2>=3.0.1
+openpyxl>=3.1.5
+
+# Google Gemini AI
+google-generativeai>=0.8.3
+# Optional older alias used in some environments
+google-api-python-client>=2.136.0
+
+# Utilities
+tqdm>=4.66.5
+requests>=2.32.3
+
+# Warnings and OS handling
+python-dotenv>=1.0.1
