@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import pickle
 import tempfile
+from flatten_json import flatten
 import os
 import matplotlib.pyplot as plt
 import google.generativeai as genai
@@ -205,6 +206,7 @@ with tab2:
                         text_content, prompt)
 
                     if isinstance(result, dict) and not result.get("error"):
+                        result=flatten(result)
                         df = pd.json_normalize(result)
                         st.success("✅ Extraction Complete!")
                         st.json(result)
@@ -229,3 +231,4 @@ with tab2:
                     st.error(f"An error occurred: {e}")
 
 st.markdown("---")
+
