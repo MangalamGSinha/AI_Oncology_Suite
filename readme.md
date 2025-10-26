@@ -64,7 +64,7 @@ AI-Oncology-Suite/
 
 ```bash
 git clone https://github.com/MangalamGSinha/AI_Oncology_Suite.git
-cd AI-Oncology-Suite
+cd AI_Oncology_Suite
 ```
 
 #### 2️⃣ Install dependencies
@@ -112,6 +112,7 @@ Then open the local URL (usually `http://localhost:8501`) in your browser.
 * Secure API key management via secrets manager
 
 ---
+
 
 
 
