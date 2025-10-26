@@ -63,7 +63,7 @@ AI-Oncology-Suite/
 #### 1️⃣ Clone the repository
 
 ```bash
-git clone https://github.com/MangalamGSinha/AI-Oncology-Suite.git
+git clone https://github.com/MangalamGSinha/AI_Oncology_Suite.git
 cd AI-Oncology-Suite
 ```
 
@@ -112,6 +112,7 @@ Then open the local URL (usually `http://localhost:8501`) in your browser.
 * Secure API key management via secrets manager
 
 ---
+
 
 
 
