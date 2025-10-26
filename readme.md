@@ -16,6 +16,10 @@ An integrated **Streamlit** application for:
 * Supports **BRCA** (Breast Cancer) and **LUAD** (Lung Adenocarcinoma).
 * Visualize top contributing genes per patient.
 * Get **AI-generated biological insights** for top genes via Gemini AI.
+  <img width="1467" height="798" alt="Screenshot 2025-10-26 082419" src="https://github.com/user-attachments/assets/0f0e3b03-7df0-485f-91ff-d4bfadb1c4bd" />
+  <img width="1421" height="900" alt="Screenshot 2025-10-26 082407" src="https://github.com/user-attachments/assets/09dc5509-9ae4-47e7-8276-3a2fc8698caf" />
+
+
 
 #### 📄 Medical Report Extractor
 
@@ -25,6 +29,10 @@ An integrated **Streamlit** application for:
   * **Extract ALL information** (comprehensive mode).
   * **Extract SPECIFIC attributes** (targeted mode).
 * Supports custom attribute prompts (e.g.,  *tumor_type* ,  *ER_status* ,  *HER2_status* ).
+  <img width="1463" height="646" alt="Screenshot 2025-10-26 082431" src="https://github.com/user-attachments/assets/7c73c163-1b3f-40ca-81da-79faba8882cf" />
+  <img width="1448" height="922" alt="Screenshot 2025-10-26 082511" src="https://github.com/user-attachments/assets/17534b97-1d26-4c6b-b358-9886d0fc2360" />
+
+
 
 ---
 
@@ -104,5 +112,6 @@ Then open the local URL (usually `http://localhost:8501`) in your browser.
 * Secure API key management via secrets manager
 
 ---
+
 
 
