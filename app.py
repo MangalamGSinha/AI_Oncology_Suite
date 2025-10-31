@@ -7,16 +7,17 @@ from flatten_json import flatten
 import os
 import matplotlib.pyplot as plt
 import google.generativeai as genai
+import json
 
 # --- Optional: seaborn only for style
 import seaborn as sns
 
 # Import your medical extraction backend
-from report_extract import (
+from final_program import (
     extract_text_from_pdf,
-    extract_attributes_with_gemini,
+    process_single_uploaded_file,
+    process_pdf_list,
 )
-
 # ============================================
 # PAGE CONFIGURATION
 # ============================================
@@ -27,13 +28,14 @@ st.write("A unified platform for **Cancer Survival Prediction** and **Medical Re
 # ============================================
 # TAB SELECTION
 # ============================================
-tab1, tab2 = st.tabs(["📈 Cancer Survival Predictor",
-                     "📄 Medical Report Extractor"])
+selected_tab = st.sidebar.radio("Select Tool",
+    ["📈 Cancer Survival Predictor", "📄 Medical Report Extractor"])
 
+if selected_tab == "📈 Cancer Survival Predictor":
+    # Show predictor UI and no extraction sidebar
 # ============================================
 # TAB 1: Cancer Survival Predictor
-# ============================================
-with tab1:
+# =====================
     st.header("📈 Cancer Survival Predictor (Multi-Cancer Model)")
     st.write("Upload tumor gene expression data (CSV) to predict survival risk using pre-trained Cox models for **Breast** and **Lung** cancers.")
 
@@ -106,22 +108,28 @@ with tab1:
         patient_norm = X_new.iloc[[0]]
         gene_contributions = patient_norm.multiply(
             cph.params_.values, axis=1).T.squeeze()
+
+        # Fix the original top 20 genes and their order
         top20_genes = gene_contributions.abs().sort_values(ascending=False).head(20)
         fixed_top20_genes = top20_genes.index.tolist()
 
         st.dataframe(top20_genes)
 
-        plt.figure(figsize=(10, 5))
+        # Initial plot with fixed genes and their contributions
+        fig, ax = plt.subplots(figsize=(10, 5))
         top20_genes.sort_values().plot(
             kind='barh',
             color=[
-                'red' if x > 0 else 'green' for x in gene_contributions[top20_genes.index].sort_values()]
+                'red' if gene_contributions[gene] > 0 else 'green' for gene in top20_genes.index.sort_values()
+            ],
+            ax=ax
         )
-        plt.xlabel("Contribution to Risk Score")
-        plt.title(f"Top Gene Contributions ({X_new.index[0]} - {cancer_type})")
-        st.pyplot(plt.gcf())
+        ax.set_xlabel("Contribution to Risk Score")
+        ax.set_title(f"Top Gene Contributions ({X_new.index[0]} - {cancer_type})")
+        st.pyplot(fig)
 
-        #sliders for adjusting the expression values
+
+        # Interactive sliders to adjust gene expressions
         st.subheader("Adjust Gene Expression Levels and Recalculate Risk")
 
         adjusted_gene_expr = {}
@@ -167,8 +175,8 @@ with tab1:
         #ax.set_xlabel("Contribution to Risk Score")
         #ax.set_title(f"Updated Gene Contributions ({X_new.index[0]} - {cancer_type})")
         #st.pyplot(fig)'''
-        
-        # Gemini insights
+
+
         st.subheader("Gemini AI Gene Insights")
         try:
             # Replace with secure management
@@ -193,92 +201,256 @@ with tab1:
 # ============================================
 # TAB 2: Medical Report Extractor
 # ============================================
-with tab2:
+elif selected_tab == "📄 Medical Report Extractor":
+    st.markdown(
+        """
+        <style>
+        #tab2-container .main {
+            background: linear-gradient(120deg, #f5f7fa 0%, #c3cfe2 100%);
+            color: #1e1e1e;
+        }
+        #tab2-container .stButton>button {
+            background-color: #0078d7;
+            color: white;
+            border-radius: 8px;
+            height: 3em;
+            width: 100%;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        #tab2-container .stButton>button:hover {
+            background-color: #005fa3;
+            color: #fff;
+            transform: scale(1.03);
+        }
+        #tab2-container .title {
+            font-size: 40px;
+            text-align: center;
+            color: #004080;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        #tab2-container .sub {
+            font-size: 18px;
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        #tab2-container .stTabs [data-baseweb="tab-list"] {
+            gap: 24px;
+        }
+        #tab2-container .stTabs [data-baseweb="tab"] {
+            height: 50px;
+            white-space: nowrap;
+            border-radius: 4px 4px 0 0;
+            gap: 1px;
+            padding-top: 10px;
+            padding-bottom: 10px;
+            font-weight: bold;
+            color: #004080;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # Wrap all Tab 2 content in a div with id="tab2-container"
+    st.markdown('<div id="tab2-container">', unsafe_allow_html=True)
+
+
     st.header("📄 Medical Report Extraction Tool")
-    st.write(
-        "Upload a PDF medical report. The AI extracts structured data as JSON and Excel.")
+    # ================================================================
+    # 🧠 APP HEADER
+    # ================================================================
+    st.markdown("<div class='title'>🧬 Medical Report Extraction Tool</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub'>Leveraging AI for structured data extraction from medical PDFs</div>", unsafe_allow_html=True)
 
-    uploaded_pdf = st.file_uploader("📤 Upload Medical Report (PDF)", type=[
-                                    "pdf"], key="pdf_upload")
+    # ================================================================
+    # ⚙️ EXTRACTION CONFIGURATION
+    # ================================================================
+    st.sidebar.markdown("### ⚙️ Extraction Configuration")
+    mode = st.sidebar.radio(
+        "Select what you want to extract:",
+        ("Extract ALL information", "Extract SPECIFIC attributes"),
+        index=0,
+        help="Choose 'Specific attributes' to target only selected medical parameters."
+    )
 
-    if uploaded_pdf:
-        st.success(f"✅ File uploaded: {uploaded_pdf.name}")
+    specific_attributes = []
+    if mode == "Extract SPECIFIC attributes":
+        attr_input = st.sidebar.text_input(
+            "🧾 Enter comma-separated attributes to extract",
+            placeholder="e.g., tumor_type, ER_status, HER2_status"
+        )
+        if attr_input:
+            specific_attributes = [a.strip() for a in attr_input.split(",") if a.strip()]
+        else:
+            st.sidebar.warning("⚠️ No attributes entered.")
 
-        mode = st.radio("Select Extraction Mode:",
-                        ("Extract ALL information", "Extract SPECIFIC attributes"), index=0)
+    # Advanced Mode
+    advanced_mode = st.sidebar.checkbox("🔬 Advanced Accuracy Mode (Chunking + Merging)", value=True)
+    st.sidebar.markdown("---")
 
-        specific_attributes = []
-        if mode == "Extract SPECIFIC attributes":
-            attr_input = st.text_input(
-                "Enter comma-separated attributes (e.g., tumor_type, ER_status, HER2_status)")
-            if attr_input:
-                specific_attributes = [a.strip()
-                                       for a in attr_input.split(",") if a.strip()]
-                st.info(f"Will extract: {', '.join(specific_attributes)}")
+    # ================================================================
+    # 🧠 BUILD PROMPT (Like in Backend)
+    # ================================================================
+    if mode == "Extract SPECIFIC attributes" and specific_attributes:
+        attributes_list = ", ".join(specific_attributes)
+        prompt = (
+            "You are an AI assistant capable of understanding complex medical reports.\n"
+            "The report may contain masked or anonymized patient data and some random or corrupted characters.\n"
+            f"Extract ONLY the following attributes from the report: {attributes_list}\n"
+            "Return only valid JSON with keys matching the requested attributes.\n"
+            "Do not include patient names or identifiers.\n"
+            "If an attribute is not found, omit it or set it to null.\n"
+            "Your response should be ONLY JSON, no extra commentary.\n\n"
+        )
+    else:
+        prompt = (
+            "You are an AI assistant capable of understanding complex medical reports.\n"
+            "The report may contain masked or anonymized patient data and some random or corrupted characters.\n"
+            "Extract whatever meaningful information you can find in the report and represent it as JSON.\n"
+            "Return only valid JSON with keys describing contents such as symptoms, diagnoses, treatments, labs, observations, dates, or any other useful details.\n"
+            "Do not include patient names or identifiers.\n"
+            "If you find nothing meaningful, return an empty JSON object {}.\n"
+            "Your response should be ONLY JSON, no extra commentary.\n\n"
+        )
+    subtab1, subtab2 = st.tabs(["🚀 Single/Batch Extraction", "⚖️ Report Comparison Mode"])
 
-        if st.button("🚀 Extract Information", use_container_width=True):
-            with st.spinner("Extracting data from PDF..."):
-                try:
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
-                        temp_file.write(uploaded_pdf.read())
-                        temp_path = temp_file.name
+    # ================================================================
+    # TAB 1: SINGLE/BATCH EXTRACTION
+    # ================================================================
+    with subtab1:
+        st.markdown("### 📥 Upload Reports for Extraction")
+        uploaded_files = st.file_uploader("📄 Upload one or more medical report PDFs", type=["pdf"], accept_multiple_files=True)
 
-                    text_content = extract_text_from_pdf(temp_path)
-                    if not text_content:
-                        st.error("Could not extract text from PDF.")
+        if uploaded_files:
+            st.info(f"✅ {len(uploaded_files)} file(s) uploaded.")
+            
+            # Determine if it's a single or batch job
+            is_batch = len(uploaded_files) > 1
+
+            if st.button(f"🚀 Extract Data from {'Batch' if is_batch else 'Single Report'}", use_container_width=True, key="extract_batch_button"):
+                with st.spinner("Processing files... This may take a few seconds per report ⏳"):
+                    
+                    # --- PROCESS FILES ---
+                    extracted_data_list = process_pdf_list(uploaded_files, prompt, specific_attributes, advanced_mode)
+                    
+                    if not extracted_data_list:
+                        st.error("❌ Failed to extract any valid data from the uploaded files.")
                         st.stop()
 
-                    if mode == "Extract SPECIFIC attributes" and specific_attributes:
-                        attrs = ", ".join(specific_attributes)
-                        prompt = (
-                            "You are an AI assistant capable of understanding complex medical reports.\n"
-                            "The report may contain masked or anonymized patient data and some random or corrupted characters.\n"
-                            f"Extract ONLY the following attributes from the report: {specific_attributes}\n"
-                            "Return only valid JSON with keys matching the requested attributes.\n"
-                            "Do not include patient names or identifiers.\n"
-                            "If an attribute is not found, set it to null.\n"
-                            "Your response should be ONLY JSON, no extra commentary.\n\n"
-                        )
-                    else:
-                        prompt = (
-                            "You are an AI assistant capable of understanding complex medical reports.\n"
-                            "The report may contain masked or anonymized patient data and some random or corrupted characters.\n"
-                            "Extract whatever meaningful information you can find in the report and represent it as JSON.\n"
-                            "Return only valid JSON with keys describing contents such as symptoms, diagnoses, treatments, labs, observations, dates, or any other useful details.\n"
-                            "Do not include patient names or identifiers.\n"
-                            "If you find nothing meaningful, return an empty JSON object {}.\n"
-                            "Your response should be ONLY JSON, no extra commentary.\n\n"
-                        )
+                    # --- CONVERT TO DATAFRAME ---
+                    final_dfs = []
+                    for result in extracted_data_list:
+                        # Convert all nested dicts/lists into strings for Excel compatibility
+                        clean_result = {
+                            k: (json.dumps(v, ensure_ascii=False, indent=2) if isinstance(v, (dict, list)) else v)
+                            for k, v in result.items()
+                        }
+                        df = pd.json_normalize(clean_result)
+                        final_dfs.append(df)
 
-                    result = extract_attributes_with_gemini(
-                        text_content, prompt)
+                    # Combine all DataFrames for batch output
+                    combined_df = pd.concat(final_dfs, ignore_index=True)
 
-                    if isinstance(result, dict) and not result.get("error"):
-                        result=flatten(result)
-                        df = pd.json_normalize(result)
-                        st.success("✅ Extraction Complete!")
-                        st.json(result)
+                    st.success(f"✅ Data extraction complete from {len(extracted_data_list)} reports!")
 
-                        with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as excel_file:
-                            df.to_excel(excel_file.name, index=False)
-                            with open(excel_file.name, "rb") as f:
-                                st.download_button(
-                                    label="📥 Download Excel File",
-                                    data=f,
-                                    file_name=f"{uploaded_pdf.name.split('.')[0]}_extracted.xlsx",
-                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                                )
+                    # --- DISPLAY AND DOWNLOAD BATCH/SINGLE ---
+                    st.markdown("### 📊 Extracted Information (Table View)")
+                    st.dataframe(combined_df, use_container_width=True)
 
-                        st.dataframe(df, use_container_width=True)
-                    else:
-                        st.error("⚠️ Error extracting structured data.")
-                        st.code(result.get("raw_response",
-                                "No response"), language="json")
+                    # Excel download
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as excel_file:
+                        # Flatten the dataframe columns if necessary (json_normalize already does a good job)
+                        combined_df.to_excel(excel_file.name, index=False)
+                        with open(excel_file.name, "rb") as f:
+                            download_filename = "batch_extracted_data.xlsx" if is_batch else f"{uploaded_files[0].name.split('.')[0]}_attributes.xlsx"
+                            st.download_button(
+                                label="📥 Download Extracted Data as Excel",
+                                data=f,
+                                file_name=download_filename,
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                            )
+                    # Show individual JSON results for transparency
+                    if not is_batch:
+                        st.markdown("### 📜 Raw JSON Output")
+                        st.json(extracted_data_list[0])
+    with subtab2:
+        st.markdown("### ⚖️ Compare Two Medical Reports (e.g., Before/After Treatment)")
+        
+        col_a, col_b = st.columns(2)
+        
+        with col_a:
+            report_a = st.file_uploader("Upload **Report A (e.g., Baseline)**", type=["pdf"], key="report_a_upload")
+        with col_b:
+            report_b = st.file_uploader("Upload **Report B (e.g., Follow-up)**", type=["pdf"], key="report_b_upload")
 
-                except Exception as e:
-                    st.error(f"An error occurred: {e}")
+        if report_a and report_b:
+            st.info("Both files uploaded. Click 'Compare' to proceed.")
+            
+            if st.button("⚖️ Compare Reports", use_container_width=True, key="compare_button"):
+                with st.spinner("Extracting and comparing data... ⏳"):
+                    
+                    # --- PROCESS REPORT A ---
+                    result_a = process_single_uploaded_file(report_a, prompt, specific_attributes, advanced_mode)
+                    
+                    # --- PROCESS REPORT B ---
+                    result_b = process_single_uploaded_file(report_b, prompt, specific_attributes, advanced_mode)
+                    
+                    if result_a.get("error") or result_b.get("error"):
+                        st.error("❌ Failed to extract data from one or both reports.")
+                        if result_a.get("error"): st.error(f"Report A Error: {result_a['error']}")
+                        if result_b.get("error"): st.error(f"Report B Error: {result_b['error']}")
+                        st.stop()
+                    
+                    st.success("✅ Extraction complete. Displaying comparison.")
+                    
+                    # --- GENERATE COMPARISON TABLE ---
+                    
+                    # Get all unique keys from both results
+                    all_keys = sorted(list(set(result_a.keys()) | set(result_b.keys())))
+                    
+                    # Create the comparison data list
+                    comparison_data = []
+                    for key in all_keys:
+                        value_a = result_a.get(key, "N/A")
+                        value_b = result_b.get(key, "N/A")
+                        
+                        # Convert complex types to JSON string for comparison clarity in table
+                        value_a_str = json.dumps(value_a, ensure_ascii=False) if isinstance(value_a, (dict, list)) else value_a
+                        value_b_str = json.dumps(value_b, ensure_ascii=False) if isinstance(value_b, (dict, list)) else value_b
+                        
+                        # Determine if the values are different
+                        status = "✅ Same"
+                        if key not in ['source_file', 'error'] and value_a_str != value_b_str:
+                            status = "⚠️ Different"
+                            
+                        comparison_data.append({
+                            "Attribute": key,
+                            report_a.name: value_a_str,
+                            report_b.name: value_b_str,
+                            "Status": status
+                        })
+                        
+                    df_compare = pd.DataFrame(comparison_data)
 
+                    st.markdown("### 🔍 Side-by-Side Attribute Comparison")
+                    st.dataframe(df_compare, use_container_width=True, hide_index=True)
+                    
+                    # Download button for the comparison table
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as excel_file:
+                        df_compare.to_excel(excel_file.name, index=False)
+                        with open(excel_file.name, "rb") as f:
+                            st.download_button(
+                                label="📥 Download Comparison Table (Excel)",
+                                data=f,
+                                file_name=f"Comparison_{report_a.name.split('.')[0]}_vs_{report_b.name.split('.')[0]}.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                            )    
+    st.markdown("</div>", unsafe_allow_html=True)
 st.markdown("---")
-
-
-
+st.markdown(
+    "<p style='text-align: center; color: gray;'>Made with ❤️ by Aksh | Powered by Google Gemini AI</p>",
+    unsafe_allow_html=True
+)
