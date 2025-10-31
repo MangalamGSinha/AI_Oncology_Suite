@@ -6,7 +6,8 @@ import pdfplumber
 from google import genai
 
 # Initialize Gemini client
-client = genai.Client(api_key="AIzaSyBw4zArHam9rrg9crVp7i04crmjQ8zFi5o")
+api_key=os.getenv("GENAI_API_KEY")
+client = genai.Client(api_key=api_key)
 
 # STEP 1: Extract text from PDF
 def extract_text_from_pdf(pdf_path):#might need to change dis function based on how pdf is given to program
@@ -222,3 +223,4 @@ if __name__ == "__main__":
         print("Error: File must be a PDF")
     else:
         process_single_pdf(pdf_file)
+
