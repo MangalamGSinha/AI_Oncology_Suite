@@ -107,6 +107,7 @@ with tab1:
         gene_contributions = patient_norm.multiply(
             cph.params_.values, axis=1).T.squeeze()
         top20_genes = gene_contributions.abs().sort_values(ascending=False).head(20)
+        fixed_top20_genes = top20_genes.index.tolist()
 
         st.dataframe(top20_genes)
 
@@ -278,5 +279,6 @@ with tab2:
                     st.error(f"An error occurred: {e}")
 
 st.markdown("---")
+
 
 
