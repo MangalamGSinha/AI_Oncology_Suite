@@ -8,7 +8,7 @@ import os
 import matplotlib.pyplot as plt
 import google.generativeai as genai
 import json
-
+api_key = os.getenv("GENAI_API_KEY")
 # --- Optional: seaborn only for style
 import seaborn as sns
 
@@ -180,7 +180,6 @@ if selected_tab == "📈 Cancer Survival Predictor":
         st.subheader("Gemini AI Gene Insights")
         try:
             # Replace with secure management
-            api_key = "AIzaSyBw4zArHam9rrg9crVp7i04crmjQ8zFi5o"
             genai.configure(api_key=api_key)
             model = genai.GenerativeModel('gemini-2.0-flash-exp')
 
@@ -454,3 +453,4 @@ st.markdown(
     "<p style='text-align: center; color: gray;'>Made with ❤️ by Aksh | Powered by Google Gemini AI</p>",
     unsafe_allow_html=True
 )
+
