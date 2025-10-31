@@ -120,6 +120,53 @@ with tab1:
         plt.title(f"Top Gene Contributions ({X_new.index[0]} - {cancer_type})")
         st.pyplot(plt.gcf())
 
+        #sliders for adjusting the expression values
+        st.subheader("Adjust Gene Expression Levels and Recalculate Risk")
+
+        adjusted_gene_expr = {}
+        for gene in fixed_top20_genes:
+            initial_val = float(patient_norm[gene].iloc[0])
+            slider_val = st.slider(
+                label=f"Expression of {gene}",
+                min_value=0.0,
+                max_value=2.0 * initial_val,
+                value=initial_val,
+                step=0.01
+            )
+            adjusted_gene_expr[gene] = slider_val
+
+
+        # Create full expression profile including unchanged genes
+        complete_expr_full = X_new.loc[[X_new.index[0]], top_genes].copy()
+        for gene, val in adjusted_gene_expr.items():
+            if gene in complete_expr_full.columns:
+                complete_expr_full[gene] = val
+
+        # Recalculate risk score using updated expression
+        new_risk_score = cph.predict_partial_hazard(complete_expr_full)
+        new_risk_group = "High Risk" if new_risk_score.values[0] >= median_risk else "Low Risk"
+
+        st.subheader("Recomputed Risk Prediction")
+        st.write({
+            "Risk Score": new_risk_score.values[0],
+            "Risk Group": new_risk_group
+        })
+
+        # Update the existing plot (same top 20 genes, updated contributions)
+        
+        #updated_gene_contributions = complete_expr_full.iloc[0].multiply(cph.params_.values, axis=0)
+        #updated_top20_contribs = updated_gene_contributions.loc[fixed_top20_genes]
+
+        #fig, ax = plt.subplots(figsize=(10, 5))
+        #updated_top20_contribs.sort_values().plot(
+            #kind='barh',
+            #color=['red' if x > 0 else 'green' for x in updated_top20_contribs.sort_values()],
+            #ax=ax
+        #)
+        #ax.set_xlabel("Contribution to Risk Score")
+        #ax.set_title(f"Updated Gene Contributions ({X_new.index[0]} - {cancer_type})")
+        #st.pyplot(fig)'''
+        
         # Gemini insights
         st.subheader("Gemini AI Gene Insights")
         try:
@@ -231,4 +278,5 @@ with tab2:
                     st.error(f"An error occurred: {e}")
 
 st.markdown("---")
+
 
