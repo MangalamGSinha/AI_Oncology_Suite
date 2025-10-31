@@ -9,7 +9,8 @@ import google.generativeai as genai
 # NOTE: Replace with your actual API key or use os.environ
 # genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 # Using a placeholder key for completeness, but recommend using environment variables.
-genai.configure(api_key="AIzaSyCTpm5P6UYPkk_7Zk0y40woRBuS002AFg8")
+api_key = os.getenv("GENAI_API_KEY")
+genai.configure(api_key=api_key)
 
 
 # STEP 1: Extract text from PDF
