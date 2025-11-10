@@ -5,11 +5,11 @@ import time
 import pandas as pd
 import pdfplumber
 import google.generativeai as genai
+api_key = os.getenv("GENAI_API_KEY")
 
 # NOTE: Replace with your actual API key or use os.environ
 # genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 # Using a placeholder key for completeness, but recommend using environment variables.
-api_key = os.getenv("GENAI_API_KEY")
 genai.configure(api_key=api_key)
 
 
@@ -52,7 +52,29 @@ def split_into_sections(text):
         sections = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size - overlap)]
 
     return sections
-
+def smart_chunk_text(text, chunk_size=3000, overlap=300):
+    """Split text into chunks with overlap, based on headings or length."""
+    # Try to split by headings first
+    sections = re.split(r'\n\s*(?:[A-Z][A-Z\s]{3,}|[A-Z][a-z]+:)\s*\n', text)
+    if len(sections) == 1:
+        # fallback to length-based chunking
+        chunks = []
+        start = 0
+        while start < len(text):
+            end = start + chunk_size
+            chunks.append(text[start:end])
+            start += chunk_size - overlap
+        return chunks
+    else:
+        # Merge short sections and ensure overlap
+        chunks = []
+        for i, sec in enumerate(sections):
+            if sec.strip():
+                part = sec.strip()
+                if i > 0 and chunks:
+                    part = chunks[-1][-overlap:] + part
+                chunks.append(part)
+        return chunks
 
 def extract_attributes_with_gemini(text_content, prompt, required_keys=None, chunk_delay=0.5):
     """
@@ -187,6 +209,36 @@ def process_single_uploaded_file(uploaded_file, prompt, specific_attributes, adv
 # ================================================================
 # Batch Processing Utilities (for a cleaner final_program.py)
 # ================================================================
+
+def generate_clinical_summary(extracted_data, mode="single"):
+    """
+    Generates a concise, oncologist-style summary of the extracted data.
+    Mode can be 'single' or 'comparison'.
+    """
+    try:
+        model = genai.GenerativeModel("gemini-2.0-flash")
+        if mode == "single":
+            prompt = (
+                "You are an experienced oncologist. Based on the structured data below, "
+                "write a clinically accurate summary describing the diagnosis, stage, "
+                "biomarkers, and treatment implications. "
+                "Be factual and concise (3-5 sentences).\n\n"
+                f"Structured report data:\n{json.dumps(extracted_data, indent=2)}"
+            )
+        elif mode == "comparison":
+            prompt = (
+                "You are an oncologist comparing two reports of the same patient. "
+                "Summarize the clinical changes, progress, or treatment response "
+                "in 4–6 sentences.\n\n"
+                f"Comparison data:\n{json.dumps(extracted_data, indent=2)}"
+            )
+        else:
+            return "Invalid mode."
+
+        response = model.generate_content(prompt)
+        return response.text.strip() if response.text else "No summary generated."
+    except Exception as e:
+        return f"Error generating clinical summary: {e}"
 
 import tempfile # Make sure tempfile is imported
 
