@@ -8,7 +8,12 @@ import os
 import matplotlib.pyplot as plt
 import google.generativeai as genai
 import json
+from dotenv import load_dotenv
+
+#load_dotenv()
+
 api_key = os.getenv("GENAI_API_KEY")
+
 # --- Optional: seaborn only for style
 import seaborn as sns
 
@@ -17,6 +22,7 @@ from final_program import (
     extract_text_from_pdf,
     process_single_uploaded_file,
     process_pdf_list,
+    generate_clinical_summary
 )
 # ============================================
 # PAGE CONFIGURATION
@@ -24,7 +30,6 @@ from final_program import (
 st.set_page_config(page_title="🧬 AI Oncology Suite", layout="wide")
 st.title("🧬 AI Oncology Suite")
 st.write("A unified platform for **Cancer Survival Prediction** and **Medical Report Extraction**.")
-
 # ============================================
 # TAB SELECTION
 # ============================================
@@ -354,6 +359,11 @@ elif selected_tab == "📄 Medical Report Extractor":
                     combined_df = pd.concat(final_dfs, ignore_index=True)
 
                     st.success(f"✅ Data extraction complete from {len(extracted_data_list)} reports!")
+                    if is_batch:
+                        st.markdown("### 🧠 AI Batch Clinical Summary")
+                        batch_summary_input = {"batch_reports": extracted_data_list}
+                        batch_summary = generate_clinical_summary(batch_summary_input, mode="single")
+                        st.write(batch_summary)
 
                     # --- DISPLAY AND DOWNLOAD BATCH/SINGLE ---
                     st.markdown("### 📊 Extracted Information (Table View)")
@@ -375,6 +385,19 @@ elif selected_tab == "📄 Medical Report Extractor":
                     if not is_batch:
                         st.markdown("### 📜 Raw JSON Output")
                         st.json(extracted_data_list[0])
+                        st.markdown("### 🧠 AI Clinical Narrative Summary")
+                        summary = generate_clinical_summary(extracted_data_list[0], mode="single")
+                        st.write(summary)
+
+                        # Save JSON + Excel
+                        df = pd.json_normalize(extracted_data_list[0])
+                        excel_path = "extracted_data.xlsx"
+                        df.to_excel(excel_path, index=False)
+                        with open("extracted_data.json", "w") as f:
+                            json.dump(extracted_data_list[0], f, indent=4)
+
+                        st.download_button("📥 Download Excel", open(excel_path, "rb"), file_name="extracted_data.xlsx")
+                        st.download_button("📥 Download JSON", open("extracted_data.json", "rb"), file_name="extracted_data.json")
     with subtab2:
         st.markdown("### ⚖️ Compare Two Medical Reports (e.g., Before/After Treatment)")
         
@@ -436,6 +459,12 @@ elif selected_tab == "📄 Medical Report Extractor":
 
                     st.markdown("### 🔍 Side-by-Side Attribute Comparison")
                     st.dataframe(df_compare, use_container_width=True, hide_index=True)
+
+                    # 🧬 Comparative Clinical Summary
+                    st.markdown("### 🧬 AI Comparative Clinical Summary")
+                    comparison_input = {"Report_A": result_a, "Report_B": result_b}
+                    comparison_summary = generate_clinical_summary(comparison_input, mode="comparison")
+                    st.write(comparison_summary)
                     
                     # Download button for the comparison table
                     with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as excel_file:
@@ -450,7 +479,6 @@ elif selected_tab == "📄 Medical Report Extractor":
     st.markdown("</div>", unsafe_allow_html=True)
 st.markdown("---")
 st.markdown(
-    "<p style='text-align: center; color: gray;'>Made with ❤️ by Aksh | Powered by Google Gemini AI</p>",
+    "",
     unsafe_allow_html=True
 )
-
